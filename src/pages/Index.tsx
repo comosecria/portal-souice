@@ -1,62 +1,24 @@
-import { useMemo, useState } from "react";
-import { CalendarPlus, Settings, Wallet, CheckCircle2, CalendarClock } from "lucide-react";
+import { useState } from "react";
+import { CalendarPlus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReservations } from "@/hooks/useReservations";
-import { Reservation, calcTotal, formatBRL } from "@/types/reservation";
-import { SummaryCard } from "@/components/agenda/SummaryCard";
-import { Filters, FiltersState } from "@/components/agenda/Filters";
+import { Reservation } from "@/types/reservation";
 import { ReservationsTable } from "@/components/agenda/ReservationsTable";
-import { ReservationDialog } from "@/components/agenda/ReservationDialog";
+import { ReservationDialog, DialogMode } from "@/components/agenda/ReservationDialog";
+import { DateSearch } from "@/components/agenda/DateSearch";
 import { toast } from "sonner";
-
-const defaultFilters: FiltersState = {
-  category: "all",
-  status: "all",
-  from: "",
-  to: "",
-};
 
 const Index = () => {
   const { reservations, add, update, remove } = useReservations();
-  const [filters, setFilters] = useState<FiltersState>(defaultFilters);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Reservation | null>(null);
-
-  const filtered = useMemo(() => {
-    return reservations.filter((r) => {
-      if (filters.category !== "all" && r.category !== filters.category) return false;
-      if (filters.status !== "all" && r.status !== filters.status) return false;
-      if (filters.from && r.date < filters.from) return false;
-      if (filters.to && r.date > filters.to) return false;
-      return true;
-    });
-  }, [reservations, filters]);
-
-  const stats = useMemo(() => {
-    let toReceive = 0;
-    let paid = 0;
-    let upcoming = 0;
-    const today = new Date().toISOString().slice(0, 10);
-    const in7 = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 10);
-    for (const r of reservations) {
-      const total = calcTotal(r.products);
-      const signal = Number(r.signal) || 0;
-      if (r.status === "pago") {
-        paid += total;
-      } else {
-        paid += signal;
-        toReceive += total - signal;
-      }
-      if (r.date >= today && r.date <= in7) upcoming++;
-    }
-    return { toReceive, paid, upcoming };
-  }, [reservations]);
+  const [mode, setMode] = useState<DialogMode>("create");
 
   const handleSave = (r: Reservation) => {
-    if (editing) {
+    if (mode === "edit") {
       update(r);
       toast.success("Reserva atualizada");
-    } else {
+    } else if (mode === "create") {
       add(r);
       toast.success("Reserva criada");
     }
@@ -65,17 +27,24 @@ const Index = () => {
 
   const openNew = () => {
     setEditing(null);
+    setMode("create");
     setDialogOpen(true);
   };
 
   const openEdit = (r: Reservation) => {
     setEditing(r);
+    setMode("edit");
+    setDialogOpen(true);
+  };
+
+  const openView = (r: Reservation) => {
+    setEditing(r);
+    setMode("view");
     setDialogOpen(true);
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="bg-gradient-header text-white shadow-elevated">
         <div className="container py-8">
           <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
@@ -106,41 +75,10 @@ const Index = () => {
       </header>
 
       <main className="container space-y-6 py-8">
-        {/* Summary Cards */}
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <SummaryCard
-            title="Saldo a Receber"
-            value={formatBRL(stats.toReceive)}
-            icon={Wallet}
-            variant="amber"
-            hint="Pendente de pagamento"
-          />
-          <SummaryCard
-            title="Total Pago"
-            value={formatBRL(stats.paid)}
-            icon={CheckCircle2}
-            variant="emerald"
-            hint="Sinais e integrais"
-          />
-          <SummaryCard
-            title="Eventos Hoje / Próximos"
-            value={String(stats.upcoming)}
-            icon={CalendarClock}
-            variant="red"
-            hint="Próximos 7 dias"
-          />
-        </section>
+        <DateSearch reservations={reservations} onView={openView} />
 
-        {/* Filters */}
-        <Filters
-          value={filters}
-          onChange={setFilters}
-          onClear={() => setFilters(defaultFilters)}
-        />
-
-        {/* Table */}
         <ReservationsTable
-          reservations={filtered}
+          reservations={reservations}
           onEdit={openEdit}
           onDelete={(id) => {
             remove(id);
@@ -154,6 +92,7 @@ const Index = () => {
         onOpenChange={setDialogOpen}
         onSave={handleSave}
         initial={editing}
+        mode={mode}
       />
     </div>
   );
