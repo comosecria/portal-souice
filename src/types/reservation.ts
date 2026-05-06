@@ -22,6 +22,10 @@ export interface Reservation {
   responsible: string;
   phone: string;
   address: string;
+  district?: string;
+  zip?: string;
+  rg?: string;
+  cpf?: string;
   category: Category;
   products: Product[];
   signal: number;
